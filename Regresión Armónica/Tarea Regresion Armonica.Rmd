@@ -1,0 +1,235 @@
+---
+title: "Tarea. Regresión Armónica."
+author: "André Marx Puente Arévalo"
+date: "02/04/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Leemos los datos
+datos <- read.csv("/Users/andremarxpuentearevalo/Documents/Fac ciencias/Series de Tiempo/Excel/Datos RA.csv")
+
+# Cargamos la libreía que nos permite manejar series de tiempo
+library(tseries)
+```
+
+```{r}
+# Graficamos la serie para ver como se comporta
+plot(datos$Zt, type = "l", col = "Blue", main = "Serie Original", ylab = "Zt", xlab = "Tiempo")
+```
+
+
+Notamos que la varianza de la serie va incrementando conforme incrementa Zt, por lo que aplicaré una transformación para estabilizar la varianza.
+
+```{r}
+# Aplicamos logaritmo natural a la serie
+LnZt <- log(datos$Zt)
+
+# Grafico la serie
+plot(LnZt, type = "l", col = "Purple", main = "Serie transformada", ylab = "ln(Zt)", xlab = "Tiempo")
+```
+
+Ahora, ya que nuestra serie tiene varianza estable, notamos que presenta tendencia, por lo que aplicaré una diferencia para quitársela. Lo que se hará es: $\bigtriangledown(ln(Z_t))$.
+
+```{r out.width="80%", fig.align="center"}
+# Aplico la diferencia
+DLnZt <- diff(LnZt)
+
+# Grafico la serie con la primer diferencia
+plot(DLnZt, type = "l", col = "Orange", main = "Serie con una diferencia", ylab = "D(ln(Zt))", xlab = "Tiempo")
+```
+
+Sabemos que tiene una periodicidad de cada 12 tiempos por lo que le aplicamos una diferencia del tipo $\bigtriangledown_{12}(\bigtriangledown(ln(Z_t)))$.
+
+```{r}
+# Aplicamos la diferencia
+DDLnZt <- diff(DLnZt,12)
+
+# Graficamos la serie sin estacionalidad
+plot(DDLnZt, type = "l", col = "#ff33ff", main = "Serie con dos diferencias", ylab = "D(D(ln(Zt)))", xlab = "Tiempo")
+```
+
+Como podemos observar, ya le quité la estacionalidad a la serie, por lo que ya puedo trabajar con ella. Al final, me he quedado con 83 observaciones, pero dado que la maestra pidió que pronostiquemos las últimas 3, trabajaré con 80 observaciones, entonces tendré que crear una matriz con 78 covariables de las cuales 39 son cosenos y 39 son senos. Estos últimos se calcularán de la siguiente manera:
+$$cos(2\pi \frac{i}{n}t)$$
+$$sen(2\pi \frac{i}{n}t) $$
+
+```{r}
+# Número total de observaciones
+n <- length(DDLnZt)
+
+# Numero de senos y cosenos
+m <- 39
+
+# Inicializo una matriz
+matriz <- matrix(0, nrow = n, ncol = 2*m)
+
+# Con el siguiente for iré llenando la matriz
+for (t in 1:n) {
+  
+  # Para  el Coseno
+  for (i in 1:m) {
+    matriz[t, i] <- cos(2*pi*i/n*t)
+  }
+  
+  # Para el Seno
+  for (j in (m+1):(2*m)) {
+    matriz[t, j] <- sin(2*pi*((j-m)/n)*t)
+  }
+  
+}
+```
+
+Ahora, voy a armar un data frame con los senos, cosenos, sus respectivos encabezados de columna y la varieable de respuesta para el entrenamiento del modelo.
+
+```{r}
+# Vamos a crear un vector con los nombres de las columnas
+nombres <- rep(0, 2*m)
+
+  for (j in 1:m) {
+    nombres[j] <- gsub(" ", "", paste("C", j, "t"))
+    nombres[j+m] <- gsub(" ", "", paste("S", j, "t"))
+  }
+
+matriz <- as.data.frame(matriz)
+names(matriz) = nombres
+
+# Separamos la muestra en entrenamiento y en prueba
+y_training <- DDLnZt[-(81:83)]
+
+# Juntamos todos los datos
+data <- cbind(as.data.frame(y_training), matriz[-(81:83), ])
+
+head(data[,1:6],5)
+
+```
+
+
+A continuación, voy a aplicar el método **Backward** y el **Fordward** para la selección de mi mejor modelo. Ahora, dado que utilizaré la función "stepAIC" de la librería MASS, la selección de los modelos los hará de la siguiente manera:
+
+- El backward lo que hace es partir de un modelo que contiene a todas las covariables y va quitando una por una hasta llegar al modelo que más minimice el AIC.
+
+- El fordward lo que hace es partir de un modelo que no tiene covariables (sólo la constante) y va agregando una a una las covariables hasta llegar al modelo que de igual manera que el anterior, minimice más al AIC.
+
+```{r results="hide"}
+# Cargo librería
+library(MASS)
+
+# Obtenemos el modelo con todas las covariables
+modeloCompleto <- lm(data$y_training ~ data$C1t +data$C2t	+data$C3t	+data$C4t	+data$C5t	+data$C6t	+data$C7t	+data$C8t	+data$C9t	+data$C10t	+data$C11t	+data$C12t	+data$C13t	+data$C14t	+data$C15t	+data$C16t	+data$C17t	+data$C18t	+data$C19t	+data$C20t	+data$C21t	+data$C22t	+data$C23t	+data$C24t	+data$C25t	+data$C26t	+data$C27t	+data$C28t	+data$C29t	+data$C30t	+data$C31t	+data$C32t	+data$C33t	+data$C34t	+data$C35t	+data$C36t	+data$C37t	+data$C38t	+data$C39t +data$S1t	+data$S2t	+data$S3t	+data$S4t	+data$S5t	+data$S6t	+data$S7t	+data$S8t	+data$S9t	+data$S10t	+data$S11t	+data$S12t	+data$S13t	+data$S14t	+data$S15t	+data$S16t	+data$S17t	+data$S18t	+data$S19t	+data$S20t	+data$S21t	+data$S22t	+data$S23t	+data$S24t	+data$S25t	+data$S26t	+data$S27t	+data$S28t	+data$S29t	+data$S30t	+data$S31t	+data$S32t	+data$S33t	+data$S34t	+data$S35t	+data$S36t	+data$S37t	+data$S38t	+data$S39t, data)
+
+# Obtenemos un modelo vacío
+modeloVacio <- lm(data$y_training ~ 1, data)
+
+# Le fijamos como una cota superior de covariables que puede tomar el metodo forward
+tope <- formula(data$y_training ~ data$C1t +data$C2t	+data$C3t	+data$C4t	+data$C5t	+data$C6t	+data$C7t	+data$C8t	+data$C9t	+data$C10t	+data$C11t	+data$C12t	+data$C13t	+data$C14t	+data$C15t	+data$C16t	+data$C17t	+data$C18t	+data$C19t	+data$C20t	+data$C21t	+data$C22t	+data$C23t	+data$C24t	+data$C25t	+data$C26t	+data$C27t	+data$C28t	+data$C29t	+data$C30t	+data$C31t	+data$C32t	+data$C33t	+data$C34t	+data$C35t	+data$C36t	+data$C37t	+data$C38t	+data$C39t +data$S1t	+data$S2t	+data$S3t	+data$S4t	+data$S5t	+data$S6t	+data$S7t	+data$S8t	+data$S9t	+data$S10t	+data$S11t	+data$S12t	+data$S13t	+data$S14t	+data$S15t	+data$S16t	+data$S17t	+data$S18t	+data$S19t	+data$S20t	+data$S21t	+data$S22t	+data$S23t	+data$S24t	+data$S25t	+data$S26t	+data$S27t	+data$S28t	+data$S29t	+data$S30t	+data$S31t	+data$S32t	+data$S33t	+data$S34t	+data$S35t	+data$S36t	+data$S37t	+data$S38t	+data$S39t)
+
+# Obtengo los modelos
+modeloBackward <- stepAIC(modeloCompleto, direction = "backward", trace = F)
+modeloFordward <- stepAIC(modeloVacio, scope=tope, direction = "forward", trace = F)
+```
+```{r}
+# Obtenemos el AIC
+print(paste("El AIC del modelo completo es:", round(AIC(modeloCompleto), 3)))
+print(paste("El AIC del modelo backward es:", round(AIC(modeloBackward), 3)))
+print(paste("El AIC del modelo frodward es:", round(AIC(modeloFordward), 3)))
+
+# Obtenemos el BIC
+print(paste("El BIC del modelo completo es:", round(BIC(modeloCompleto), 3)))
+print(paste("El BIC del modelo backward es:", round(BIC(modeloBackward), 3)))
+print(paste("El BIC del modelo fordward es:", round(BIC(modeloFordward), 3)))
+
+# Obtenemos el error
+print(paste("La R cuadrada del modelo completo es:", round(summary(modeloCompleto)$r.squared, 5)))
+print(paste("La R cuadrada del modelo backward es:", round(summary(modeloBackward)$r.squared, 5)))
+print(paste("La R cuadrada del modelo forward es:", round(summary(modeloFordward)$r.squared, 5)))
+```
+
+Notemos que el modelo backward tiene el mismo AIC y BIC que el modelo completo, por lo que no está quitando ninguna covariable.
+
+Observamos la ANOVA de dicho modelo:
+
+```{r}
+modeloBackward$anova
+```
+
+Y efectivamente, como lo mencioné arriba, mediante el método backward no hizo ningún cambio al modelo completo. Analisemos el summary:
+
+```{r}
+summary(modeloBackward)$coefficients
+```
+
+Notamos que ningún coeficiente es significativo usando éste modelo.
+
+Ahora, analicemos la ANOVA del modelo fordward:
+
+```{r}
+modeloFordward$anova
+```
+
+En la ANOVA estamos observando las covariables con las que sí se queda nuestro modelo, por lo que podemos notar que no está utilizando 19.
+
+Analizaremos los coeficientes con los que se quedó al final el modelo:
+
+```{r}
+summary(modeloFordward)
+```
+
+Notemos que claramente el modelo hecho por el método backward es el que tiene menor AIC, sin embargo, eso no significa que sea el mejor modelo, ya que, tiene menor AIC que el modelo hecho con el método forward, porque se está tomando muchas más covariables, de hecho toma todas, mientras que por otro lado el del forward, toma muchas menos covariables y sí, tiene menor AIC, pero observando su $R^2$ no tiene practicamente error, por lo que seleccionaré este último como mejor modelo.
+
+Analizando los coeficientes del modelo forward, nos damos cuenta que tiene variables que no son significatovas para mi ajuste, por lo que no tomaremos en cuenta las covariables que su p-value suepere mi nivel de significancia.Es importante recalcar que al guitar una covariables puede cambiar el valor del p-value de las demás, por lo que vamos a tener que aplicar ahora un modelo backward, el cual, consistirá en partiendo de las covariables con las que nos ha arrojado el modelo forward, irá quitando la covariable menos significativa (la del mayor p-value) hasta quedaros con puras variables que su p-value < 5%.
+
+Éste proceso lo haré en la consola, por lo que no se mostrarán los resultados, lo hago así para que el pdf no se extienda demasiado.
+
+Al final el modelo me queda:
+
+```{r}
+# Actualizo a mi modelo final
+modeloFordward <- update(modeloFordward, data$y_training ~ data$S23t + data$C38t + data$S36t + data$C33t + data$C10t + data$S24t + data$C31t + data$S7t + data$C35t + data$S10t + data$C12t + data$S29t + data$C39t + data$C24t + data$C34t + data$C22t + data$C14t + data$S32t + data$C3t + data$C37t + data$S30t + data$S28t + data$S19t + data$S21t + data$C36t + data$C15t + data$S37t + data$S35t)
+
+summary(modeloFordward)
+
+# Eror cuadrático
+print(paste("La R cuadrada del mejor modelo es:", round(summary(modeloFordward)$r.squared, 5)))
+```
+
+Como podemos observar, ya son significativas todas las covariables.
+
+Presento la gráfica del ajuste.
+
+```{r}
+# Generamos la gráfica 
+plot(DDLnZt, type = "l", main = "Modelo Original vs Modelo Ajustado", col="#FF6600",lwd=5, xlab = "Tiempo", ylab = "Modelo")
+lines(modeloFordward$fitted.values,col="blue",lwd=2, lty = 1)
+legend("bottom",legend = c("Modelo Original","Modelo ajustado"), col = c("#FF6600","blue"), lty=c(1,1), cex=0.8)
+```
+
+Finalmente, vamos a realizar las **proyecciones** para las 3 últimas observaciones:
+
+```{r}
+# Obtenemos los coeficientes del mejor modelo
+coeficientes <- as.matrix(modeloFordward$coefficients)
+
+# Extraemos los valores de los senos y los cosenos para las observaciones que vamos a predecir
+covariables <- matriz[81:83, c("S23t", "C38t", "S36t", "C33t", "C10t", "S24t", "C31t", "S7t", "C35t", "S10t", "C12t", "S29t", "C39t", "C24t", "C34t", "C22t", "C14t", "S32t", "C3t", "C37t", "S30t", "S28t", "S19t", "S21t", "C36t", "C15t", "S37t", "S35t")]
+
+# Inicializo mi vector de predicciones
+predict <- c()
+
+# LLeno el vector
+for (i in 1:3){
+predict[i+1]<-sum(t(coeficientes[-1])*as.matrix(covariables[i,]))+coeficientes[1] }
+
+# Para que las graficas se junten, le agregamos un valor al vector de las predicciones
+predict[1] <- modeloFordward$fitted.values[80]
+
+# Graficamos el Ajuste, la predicción y la serie original
+plot(DDLnZt, type = "l", main = "Modelo Original y valores Pronosticados", col="#FF6600",lwd=5, xlab = "Tiempo", ylab = "Modelo")
+lines(modeloFordward$fitted.values,col="blue",lwd=2, lty = 2)
+lines(y = predict, x = rep(80:83), col = "darkorchid4", lwd=3, lty = 1)
+legend("bottom",legend = c("Modelo Original","Modelo ajustado", "Pronósticos"), col = c("#FF6600","blue", "darkorchid4"), lty=c(1, 2, 1), cex=0.8)
+```
+
